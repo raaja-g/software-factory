@@ -120,6 +120,42 @@
         "spec.md"
       ],
       "updated": "2026-11-10T19:10:29Z"
+    },
+    {
+      "id": "004-fix-origin-null-403",
+      "title": "Fix 403 on browser form POSTs (Origin: null)",
+      "branch": "factory/004-fix-origin-null-403",
+      "stage": "merged",
+      "round": 1,
+      "reviews": {
+        "security": "PASS",
+        "ux": "PASS",
+        "ui": "PASS",
+        "code": "PASS"
+      },
+      "history": [
+        {
+          "round": 1,
+          "reviews": {
+            "security": "PASS",
+            "ux": "PASS",
+            "ui": "PASS",
+            "code": "PASS"
+          }
+        }
+      ],
+      "decision": "APPROVE",
+      "files": [
+        "build.md",
+        "decision.md",
+        "feature.md",
+        "round-1/review-code.md",
+        "round-1/review-security.md",
+        "round-1/review-ui.md",
+        "round-1/review-ux.md",
+        "spec.md"
+      ],
+      "updated": "2026-11-10T19:19:37Z"
     }
   ]
 }
