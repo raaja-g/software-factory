@@ -71,6 +71,55 @@
         "spec.md"
       ],
       "updated": "2026-11-10T17:25:32Z"
+    },
+    {
+      "id": "003-todo-web",
+      "title": "Add a tiny local todo web page",
+      "branch": "factory/003-todo-web",
+      "stage": "merged",
+      "round": 2,
+      "reviews": {
+        "security": "PASS",
+        "ux": "PASS",
+        "ui": "PASS",
+        "code": "PASS"
+      },
+      "history": [
+        {
+          "round": 1,
+          "reviews": {
+            "security": "CHANGES",
+            "ux": "PASS",
+            "ui": "PASS",
+            "code": "PASS"
+          }
+        },
+        {
+          "round": 2,
+          "reviews": {
+            "security": "PASS",
+            "ux": "PASS",
+            "ui": "PASS",
+            "code": "PASS"
+          }
+        }
+      ],
+      "decision": "APPROVE",
+      "files": [
+        "build.md",
+        "decision.md",
+        "feature.md",
+        "round-1/review-code.md",
+        "round-1/review-security.md",
+        "round-1/review-ui.md",
+        "round-1/review-ux.md",
+        "round-2/review-code.md",
+        "round-2/review-security.md",
+        "round-2/review-ui.md",
+        "round-2/review-ux.md",
+        "spec.md"
+      ],
+      "updated": "2026-11-10T19:10:29Z"
     }
   ]
 }
