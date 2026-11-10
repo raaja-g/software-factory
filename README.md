@@ -16,6 +16,7 @@ src/app/              application package (importable as `app`)
   __init__.py         package metadata (`__version__`)
   __main__.py         entry point for `python -m app`
   todo.py             todo CLI + reusable storage functions (`python -m app.todo`)
+  web.py              local todo web page (`python -m app.web`)
 tests/                pytest test suite (`test_*.py`)
 pyproject.toml        project metadata + pytest config (`pythonpath = ["src"]`)
 requirements-dev.txt  dev dependencies (pytest)
@@ -90,3 +91,33 @@ overwritten. Usage errors (bad or missing subcommand, non-integer `N`) exit 2.
 
 The storage functions `load_items`, `save_items`, `add_item`, `complete_item`
 and `default_path` live in `app.todo` and each accept an optional `path`.
+
+## Todo web page
+
+A tiny browser view of the same todo list: no JavaScript, no dependencies. Run
+it from `src/`:
+
+```sh
+cd src
+python3 -m app.web            # Serving todos at http://127.0.0.1:8000/ (Ctrl+C to stop)
+python3 -m app.web --port 9000
+python3 -m app.web --port 0   # let the OS pick a free port
+```
+
+Then open **http://127.0.0.1:8000/** (or `http://localhost:8000/`). The page
+lists all todos with the same numbers as `python3 -m app.todo list`, has a
+form to add a todo, and a **Done** button on each open item. Press Ctrl+C to
+stop the server.
+
+- It shares **`~/.todo.json`** with the CLI (same storage functions), so the
+  CLI and the page always show the same list. Reload the page to see changes
+  made from the CLI.
+- It binds **only to `127.0.0.1`** (localhost); it is not reachable from other
+  machines and has no `--host` option.
+- Requests whose `Host` is not `127.0.0.1:<port>` / `localhost:<port>` are
+  rejected, as are POSTs from another `Origin`; form bodies are limited to
+  10 000 bytes, and all text is HTML-escaped.
+- A corrupt `~/.todo.json` shows an error page (HTTP 500) and is never
+  overwritten.
+- If the port is already in use it prints `error: <message>` to stderr and
+  exits 1; an invalid `--port` exits 2.
