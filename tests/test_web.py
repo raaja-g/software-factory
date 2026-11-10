@@ -498,7 +498,7 @@ def test_security_headers(port, store, method, path, body, expected):
     assert resp_headers["Content-Length"] is not None
     assert resp_headers["Content-Security-Policy"] == CSP
     assert resp_headers["X-Content-Type-Options"] == "nosniff"
-    assert resp_headers["Referrer-Policy"] == "no-referrer"
+    assert resp_headers["Referrer-Policy"] == "same-origin"
     assert resp_headers["Cache-Control"] == "no-store"
 
 
@@ -507,11 +507,99 @@ def test_security_headers_on_403_and_500(port, store):
                            {"Origin": "http://evil.example"})
     assert status == 403
     assert h["Content-Security-Policy"] == CSP
+    assert h["Referrer-Policy"] == "same-origin"
     store.write_text("{not json", encoding="utf-8")
     status, h, _ = request(port, "GET", "/")
     assert status == 500
     assert h["Content-Security-Policy"] == CSP
+    assert h["Referrer-Policy"] == "same-origin"
     assert h["Cache-Control"] == "no-store"
+
+
+# Regression: Origin: null on same-origin form POSTs (job 004)
+REFERRER_POLICIES = {
+    "no-referrer", "no-referrer-when-downgrade", "same-origin", "origin",
+    "strict-origin", "origin-when-cross-origin",
+    "strict-origin-when-cross-origin", "unsafe-url",
+}
+DEFAULT_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+
+def effective_referrer_policy(header_value):
+    """Last recognised token of a ``Referrer-Policy`` header value."""
+    policy = DEFAULT_REFERRER_POLICY
+    for token in (header_value or "").split(","):
+        token = token.strip().lower()
+        if token in REFERRER_POLICIES:
+            policy = token
+    return policy
+
+
+def browser_post_origin(policy, page_origin, target_origin):
+    """``Origin`` a browser sends for a form POST (Fetch "serialize a request
+    origin"; method is not GET/HEAD and mode is ``navigate``, so not CORS).
+
+    ``policy`` may be a raw ``Referrer-Policy`` header value; the effective
+    policy (last recognised token) is used.
+    """
+    policy = effective_referrer_policy(policy)
+    page_scheme = urllib.parse.urlsplit(page_origin).scheme
+    target_scheme = urllib.parse.urlsplit(target_origin).scheme
+    downgrade = page_scheme == "https" and target_scheme != "https"
+    if policy == "no-referrer":
+        return "null"
+    if policy == "same-origin" and page_origin != target_origin:
+        return "null"
+    if policy in ("no-referrer-when-downgrade", "strict-origin",
+                  "strict-origin-when-cross-origin") and downgrade:
+        return "null"
+    return page_origin
+
+
+def test_browser_post_origin_model():
+    page = "http://127.0.0.1:8000"
+    other = "http://evil.example"
+    assert browser_post_origin("no-referrer", page, page) == "null"
+    assert browser_post_origin("same-origin", page, page) == page
+    assert browser_post_origin("same-origin", page, other) == "null"
+    assert browser_post_origin("strict-origin-when-cross-origin", page, page) == page
+    assert browser_post_origin("no-referrer, same-origin", page, page) == page
+    assert browser_post_origin("same-origin, bogus", page, page) == page
+    assert browser_post_origin("bogus", page, page) == page  # default policy
+    assert browser_post_origin("", page, page) == page
+    assert browser_post_origin(
+        "strict-origin", "https://a.example", "http://a.example") == "null"
+    assert browser_post_origin(
+        "origin", "https://a.example", "http://a.example") == "https://a.example"
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost"])
+def test_referrer_policy_does_not_null_same_origin_post(port, store, host):
+    same = f"http://{host}:{port}"
+    status, headers, _ = request(port, "GET", "/", headers={"Host": f"{host}:{port}"})
+    assert status == 200
+    policy = headers["Referrer-Policy"]
+    origin = browser_post_origin(policy, same, same)
+    assert origin != "null", f"Referrer-Policy {policy!r} nulls same-origin Origin"
+    post_headers = {"Host": f"{host}:{port}", "Origin": origin}
+
+    status, resp, _ = request(port, "POST", "/add", form(text="buy milk"), post_headers)
+    assert status == 303
+    assert resp["Location"] == "/"
+    assert read_json(store)["items"] == [{"text": "buy milk", "done": False}]
+
+    status, resp, _ = request(port, "POST", "/done", form(number="1"), post_headers)
+    assert status == 303
+    assert read_json(store)["items"] == [{"text": "buy milk", "done": True}]
+
+
+def test_page_has_no_referrer_override(port, store):
+    seed(store, ("a", False), ("b", True))
+    status, _, text = request(port, "GET", "/")
+    assert status == 200
+    lowered = text.lower()
+    assert 'name="referrer"' not in lowered
+    assert "referrerpolicy" not in lowered
 
 
 # AC13
