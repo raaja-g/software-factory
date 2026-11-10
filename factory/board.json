@@ -1,1 +1,40 @@
-{ "jobs": [] }
+{
+  "jobs": [
+    {
+      "id": "001-bootstrap-python",
+      "title": "Bootstrap a minimal Python 3 project",
+      "branch": "factory/001-bootstrap-python",
+      "stage": "merged",
+      "round": 1,
+      "reviews": {
+        "security": "PASS",
+        "ux": "PASS",
+        "ui": "PASS",
+        "code": "PASS"
+      },
+      "history": [
+        {
+          "round": 1,
+          "reviews": {
+            "security": "PASS",
+            "ux": "PASS",
+            "ui": "PASS",
+            "code": "PASS"
+          }
+        }
+      ],
+      "decision": "APPROVE",
+      "files": [
+        "build.md",
+        "decision.md",
+        "feature.md",
+        "round-1/review-code.md",
+        "round-1/review-security.md",
+        "round-1/review-ui.md",
+        "round-1/review-ux.md",
+        "spec.md"
+      ],
+      "updated": "2026-11-10T17:21:09Z"
+    }
+  ]
+}
