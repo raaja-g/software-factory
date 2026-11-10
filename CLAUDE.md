@@ -18,6 +18,10 @@ and `.claude/agents/` for each agent.
 - **Test command:** `make test` — creates a project-local `.venv/` and installs
   dev deps on first run, then runs `.venv/bin/python -m pytest`. Do not rely on a
   globally installed pytest. `make clean` removes `.venv/` and caches.
+- **Optional browser test:** `make test-browser` installs
+  `requirements-browser.txt` (pytest + Playwright) and Chromium (best effort;
+  falls back to Google Chrome), then runs `tests/test_browser.py`. Under
+  `make test` that test is skipped when Playwright is not installed.
 
 Keep this section current: language, how to run, and the **test command**
 (agents rely on it).

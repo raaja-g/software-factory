@@ -20,7 +20,8 @@ src/app/              application package (importable as `app`)
 tests/                pytest test suite (`test_*.py`)
 pyproject.toml        project metadata + pytest config (`pythonpath = ["src"]`)
 requirements-dev.txt  dev dependencies (pytest)
-Makefile              `venv`, `test`, `clean` targets
+requirements-browser.txt  optional browser-test deps (pytest + Playwright)
+Makefile              `venv`, `test`, `test-browser`, `clean` targets
 ```
 
 ## Running tests
@@ -38,6 +39,17 @@ Manual alternative (without `make`):
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && .venv/bin/python -m pytest
 ```
+
+Optional real-browser test (adds a todo and marks it done in headless
+Chromium via Playwright; falls back to an installed Google Chrome):
+
+```sh
+make test-browser
+```
+
+It installs `requirements-browser.txt` (pytest + Playwright) into `.venv/` and
+tries `playwright install chromium`. Under plain `make test` the browser test
+is reported as skipped when Playwright is not installed.
 
 To remove the virtualenv and caches:
 
@@ -115,8 +127,11 @@ stop the server.
 - It binds **only to `127.0.0.1`** (localhost); it is not reachable from other
   machines and has no `--host` option.
 - Requests whose `Host` is not `127.0.0.1:<port>` / `localhost:<port>` are
-  rejected, as are POSTs from another `Origin`; form bodies are limited to
-  10 000 bytes, and all text is HTML-escaped.
+  rejected, as are POSTs whose `Origin` is foreign or `null`; form bodies are
+  limited to 10 000 bytes, and all text is HTML-escaped.
+- The page sends `Referrer-Policy: same-origin`, so browsers send the real
+  `Origin` on its own form POSTs (`no-referrer` would make them send
+  `Origin: null`, which is refused).
 - A corrupt `~/.todo.json` shows an error page (HTTP 500) and is never
   overwritten.
 - If the port is already in use it prints `error: <message>` to stderr and
