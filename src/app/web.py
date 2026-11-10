@@ -14,7 +14,9 @@ Because it is meant for a personal machine, every request is checked for a
 loopback ``Host`` header (DNS-rebinding defence), POSTs with a foreign
 ``Origin`` are refused (CSRF defence), request bodies are capped at
 ``MAX_BODY`` bytes, all text is HTML-escaped and every response carries a
-strict Content-Security-Policy.
+strict Content-Security-Policy. ``Referrer-Policy: same-origin`` keeps the
+real ``Origin`` on the page's own form POSTs (``no-referrer`` would make
+browsers send ``Origin: null``, which is refused).
 """
 
 from __future__ import annotations
@@ -43,7 +45,9 @@ SECURITY_HEADERS = {
         "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; "
         "frame-ancestors 'none'; base-uri 'none'"
     ),
-    "Referrer-Policy": "no-referrer",
+    # Not "no-referrer": per the Fetch spec that makes browsers send
+    # "Origin: null" on same-origin form POSTs, which _check_origin refuses.
+    "Referrer-Policy": "same-origin",
     "Cache-Control": "no-store",
 }
 
