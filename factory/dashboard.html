@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Factory floor</title>
+<style>
+:root{
+  color-scheme: light dark;
+  --ground:#E5E9EA; --lane:#DADFE1; --panel:#FAFBFB; --ink:#14181B; --muted:#58626A; --rule:#C3CBCF;
+  --pass:#22764A; --pass-ink:#FFFFFF; --changes:#B0600A; --changes-ink:#FFFFFF;
+  --andon:#D21F36; --andon-wash:#FCEBED; --lamp-off:#B3BCC1; --focus:#1D5FD1;
+  --display:"DIN Condensed","DIN Alternate",Bahnschrift,"Arial Narrow",sans-serif;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ground:#0F1315; --lane:#161B1E; --panel:#1C2226; --ink:#E1E6E8; --muted:#8C979D; --rule:#2E373B;
+    --pass:#3DB071; --pass-ink:#05130B; --changes:#E29B33; --changes-ink:#1B1000;
+    --andon:#FF4B5D; --andon-wash:#2C1418; --lamp-off:#3C464B; --focus:#86B4FF;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font:14px/1.45 var(--body);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.btn{font:600 12px/1 var(--body);padding:7px 11px;border-radius:6px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--muted)}
+
+/* ── header ─────────────────────────────────────── */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;padding:22px 24px 16px}
+.brand h1{margin:0;font:700 28px/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.brand p{margin:6px 0 0;color:var(--muted);font:12px/1.4 var(--mono)}
+.signal{display:flex;align-items:center;gap:9px;font-size:13px}
+.signal .msg{font-weight:650}
+.signal .read{color:var(--muted);font:12px var(--mono)}
+.signal.alarm .msg{color:var(--andon)}
+.signal.error .msg{color:var(--changes)}
+.notice{margin:0 24px 16px;padding:12px 14px;border:1px dashed var(--rule);border-radius:10px;color:var(--muted)}
+.notice code{font:12.5px var(--mono);color:var(--ink)}
+
+/* ── andon lamps ────────────────────────────────── */
+.lamp{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--lamp-off);flex:none}
+.lamp.on{background:var(--pass);box-shadow:0 0 0 3px color-mix(in srgb,var(--pass) 22%,transparent)}
+.lamp.alarm{background:var(--andon);box-shadow:0 0 0 3px color-mix(in srgb,var(--andon) 30%,transparent);animation:andon 1.1s ease-in-out infinite}
+@keyframes andon{50%{opacity:.45;box-shadow:0 0 0 8px color-mix(in srgb,var(--andon) 0%,transparent)}}
+
+/* ── the floor: one column per station ──────────── */
+.floor{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;padding:0 24px 32px}
+@media (max-width:1240px){.floor{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:22px}}
+@media (max-width:720px){
+  .floor{grid-template-columns:minmax(0,1fr);padding:0 16px 24px}
+  .top{padding:18px 16px 14px}
+  .notice{margin:0 16px 14px}
+}
+.station{display:flex;flex-direction:column;min-width:0}
+.station-head{border-top:3px solid var(--ink);padding:9px 2px 10px}
+.station-head h2{display:flex;align-items:center;gap:8px;margin:0;font:700 19px/1 var(--display);letter-spacing:.05em;text-transform:uppercase}
+.station-head .count{margin-left:auto;color:var(--muted)}
+.station-head p{margin:6px 0 0;color:var(--muted);font:11px/1.3 var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.station.alarm .station-head{border-top-color:var(--andon)}
+.station.alarm .station-head h2,.station.alarm .station-head .count{color:var(--andon)}
+.lane{flex:1;display:flex;flex-direction:column;gap:8px;min-height:150px;padding:6px;border-radius:9px;background:var(--lane)}
+@media (max-width:720px){.lane{min-height:0}.lane:empty{display:none}}
+
+/* ── job card ───────────────────────────────────── */
+.card{display:block;text-decoration:none;background:var(--panel);border:1px solid var(--rule);border-radius:7px;padding:9px 9px 8px}
+.card:hover{border-color:color-mix(in srgb,var(--ink) 40%,var(--rule))}
+.card-id{display:flex;align-items:baseline;gap:7px;min-width:0}
+.card-id .num{font:700 21px/1 var(--display);letter-spacing:.02em}
+.card-id .slug{font:11.5px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .title{display:block;margin:6px 0 8px;font-weight:560;line-height:1.35}
+.rounds{display:flex;flex-direction:column;gap:4px;margin:0 0 8px}
+.round{display:flex;align-items:center;gap:3px}
+.round .r{width:21px;flex:none;font:11px var(--mono);color:var(--muted)}
+.chip{position:relative;display:inline-flex;align-items:center;height:19px;padding:0 5px;border-radius:4px;font:10.5px/1 var(--mono);border:1px dashed var(--rule);color:var(--muted)}
+.chip.pass{background:var(--pass);border:1px solid var(--pass);color:var(--pass-ink)}
+.chip.changes{border:1px solid var(--changes);color:var(--changes-ink);
+  background:repeating-linear-gradient(-45deg,var(--changes) 0 5px,color-mix(in srgb,var(--changes) 80%,#000) 5px 8px)}
+.chip.landed{animation:stamp .5s cubic-bezier(.2,.9,.3,1.35)}
+@keyframes stamp{0%{transform:scale(1.7) rotate(-8deg);opacity:0}100%{transform:none;opacity:1}}
+.status{display:flex;justify-content:space-between;gap:8px;font:11px/1.3 var(--mono);color:var(--muted)}
+.status [data-ts]{flex:none;white-space:nowrap}
+.card.alarm{border-color:var(--andon);background:var(--andon-wash);box-shadow:inset 4px 0 0 var(--andon);padding-left:13px}
+.card.alarm .status .what{color:var(--andon);font-weight:700}
+.card.done{opacity:.7}
+.card.done:hover{opacity:1}
+
+/* ── drawer (native modal dialog) ───────────────── */
+dialog.drawer{margin:0 0 0 auto;padding:0;border:0;border-left:1px solid var(--rule);
+  width:min(780px,100vw);max-width:100vw;height:100vh;height:100dvh;max-height:100dvh;
+  background:var(--panel);color:var(--ink);box-shadow:-16px 0 48px rgba(0,0,0,.2)}
+dialog.drawer::backdrop{background:rgba(8,12,14,.4)}
+dialog.drawer[open]{animation:slide .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes slide{from{transform:translateX(28px);opacity:0}}
+.d-wrap{display:flex;flex-direction:column;height:100%}
+.d-head{padding:18px 22px 13px;border-bottom:1px solid var(--rule)}
+.d-head .row{display:flex;align-items:center;gap:12px}
+.d-head .num{font:700 32px/1 var(--display)}
+.d-head h2{margin:0;flex:1;min-width:0;font-size:17px;font-weight:620;line-height:1.3}
+.d-head h2:focus{outline:none}
+.d-meta{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;color:var(--muted);font:12px var(--mono)}
+.d-andon{margin:14px 22px 0;padding:12px 14px;border:1px solid var(--andon);border-left-width:4px;border-radius:8px;background:var(--andon-wash)}
+.d-andon strong{color:var(--andon)}
+.d-andon .link{all:unset;cursor:pointer;font-family:var(--mono);font-size:12.5px;text-decoration:underline}
+.cmd{display:flex;align-items:center;gap:8px;margin-top:8px}
+.cmd code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;font:12.5px var(--mono);background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:7px 9px}
+.d-files{display:flex;flex-direction:column;gap:7px;padding:13px 22px;border-bottom:1px solid var(--rule)}
+.fgroup{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.fgroup .glabel{width:62px;flex:none;font:11px var(--mono);color:var(--muted)}
+.fbtn{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:5px;border:1px solid var(--rule);background:transparent;color:var(--ink);font:12px var(--mono);cursor:pointer}
+.fbtn:hover{border-color:var(--muted)}
+.fbtn.missing{color:var(--muted);border-style:dashed}
+.fbtn[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.fbtn .dot{width:7px;height:7px;border-radius:50%;background:var(--lamp-off)}
+.fbtn .dot.pass{background:var(--pass)}
+.fbtn .dot.changes{background:var(--changes)}
+.d-body{flex:1;overflow:auto;padding:20px 22px 48px}
+@media (max-width:720px){.d-head,.d-files,.d-body{padding-left:16px;padding-right:16px}.d-andon{margin:12px 16px 0}}
+
+/* ── rendered markdown ──────────────────────────── */
+.md{max-width:74ch;font-size:14.5px;line-height:1.6}
+.md > :first-child{margin-top:0}
+.md h3,.md h4,.md h5{margin:1.5em 0 .5em;line-height:1.25}
+.md h3{font-size:21px}
+.md h4{font-size:16px}
+.md h5{font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.md p,.md ul,.md ol,.md blockquote,.md pre,.md table{margin:0 0 .9em}
+.md ul,.md ol{padding-left:1.4em}
+.md li{margin:.2em 0}
+.md li > p{margin:.3em 0}
+.md li.task{list-style:none;margin-left:-1.35em}
+.md li.task input{margin:0 .5em 0 0;vertical-align:-1px}
+.md code{font:12.5px var(--mono);background:color-mix(in srgb,var(--ink) 7%,transparent);padding:.1em .35em;border-radius:4px}
+.md pre{background:color-mix(in srgb,var(--ink) 5%,transparent);border:1px solid var(--rule);border-radius:8px;padding:12px 14px;overflow:auto}
+.md pre code{background:none;padding:0;line-height:1.5}
+.md blockquote{margin-left:0;padding-left:12px;border-left:3px solid var(--rule);color:var(--muted)}
+.md hr{border:0;border-top:1px solid var(--rule);margin:1.5em 0}
+.md table{display:block;overflow-x:auto;border-collapse:collapse}
+.md th,.md td{border:1px solid var(--rule);padding:5px 9px;text-align:left;vertical-align:top}
+.md a{color:var(--focus)}
+.md .empty{color:var(--muted)}
+.stamp{display:inline-block;margin:0 0 18px;padding:6px 13px 3px;border:3px solid currentColor;border-radius:6px;font:700 24px/1 var(--display);letter-spacing:.14em;transform:rotate(-1.5deg)}
+.stamp.pass,.stamp.approve{color:var(--pass)}
+.stamp.changes{color:var(--changes)}
+.stamp.escalate{color:var(--andon)}
+
+/* cards glide between stations (View Transitions); only cards animate */
+::view-transition-old(root),::view-transition-new(root){animation:none}
+::view-transition-group(*){animation-duration:.45s;animation-timing-function:cubic-bezier(.2,.8,.2,1)}
+
+@media (prefers-reduced-motion: reduce){
+  .lamp.alarm,.chip.landed,dialog.drawer[open]{animation:none}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Software factory</h1>
+    <p>feature → spec → build → 4 reviews → approve → main</p>
+  </div>
+  <div class="signal" id="signal"><span class="lamp"></span><span class="msg" aria-live="polite">Connecting…</span><span class="read"></span></div>
+</header>
+<p class="notice" id="notice" hidden></p>
+<main class="floor" id="floor"></main>
+
+<dialog class="drawer" id="drawer" aria-labelledby="d-title">
+  <div class="d-wrap">
+    <header class="d-head">
+      <div class="row"><span class="num" id="d-num"></span><h2 id="d-title" tabindex="-1"></h2><button class="btn" id="d-close" type="button">Close</button></div>
+      <div class="d-meta" id="d-meta"></div>
+    </header>
+    <div class="d-andon" id="d-andon" hidden></div>
+    <nav class="d-files" id="d-files" aria-label="Job files"></nav>
+    <div class="d-body" id="d-body"><article class="md" id="d-doc"></article></div>
+  </div>
+</dialog>
+
+<script>
+const STAGES = [
+  { key: 'spec',        label: 'Spec',        hint: 'spec-writer · opus' },
+  { key: 'build',       label: 'Build',       hint: 'builder · opus' },
+  { key: 'review',      label: 'Review',      hint: 'security · ux · ui · code' },
+  { key: 'approve',     label: 'Approve',     hint: 'approver · opus' },
+  { key: 'needs-human', label: 'Needs human', hint: '/factory approve | rework' },
+  { key: 'merged',      label: 'Merged',      hint: 'on main' },
+];
+const REVIEWERS = [
+  { key: 'security', short: 'sec' },
+  { key: 'ux',       short: 'ux' },
+  { key: 'ui',       short: 'ui' },
+  { key: 'code',     short: 'code' },
+];
+const ACTIVE = new Set(['spec', 'build', 'review', 'approve']);
+const POLL_MS = 2000;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const indentOf = (s) => s.match(/^\s*/)[0].replace(/\t/g, '    ').length;
+
+let board = { jobs: [] }, boardText = null, loadError = null, failCount = 0, firstLoad = true;
+const seenVerdicts = new Map(); // "id|round|reviewer" -> verdict, to stamp chips as they land
+
+/* ── board helpers ──────────────────────────────── */
+function verdictOf(v) {
+  const u = String(v || '').toUpperCase();
+  return u.startsWith('PASS') ? 'pass' : u.startsWith('CHANGE') ? 'changes' : 'pending';
+}
+function stageOf(job) {
+  const s = String(job.stage || '').toLowerCase();
+  return STAGES.some((x) => x.key === s) ? s : 'spec';
+}
+function findJob(id) { return (board.jobs || []).find((j) => String(j.id) === id); }
+function splitId(id) { const [num, ...rest] = String(id).split('-'); return { num, slug: rest.join('-') }; }
+function ago(ts) {
+  const t = Date.parse(ts); if (!ts || isNaN(t)) return '';
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 45) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + 'm ago';
+  if (s < 86400) return Math.round(s / 3600) + 'h ago';
+  return Math.round(s / 86400) + 'd ago';
+}
+function roundsOf(job) {
+  const rounds = (Array.isArray(job.history) ? job.history : [])
+    .filter((r) => r && r.reviews).map((r) => ({ round: Number(r.round) || 0, reviews: r.reviews }));
+  const cur = Number(job.round) || 0, st = stageOf(job);
+  const reviews = job.reviews || {};
+  const started = Object.values(reviews).some((v) => verdictOf(v) !== 'pending');
+  if (cur && !rounds.some((r) => r.round === cur) && (st === 'review' || (started && st !== 'build' && st !== 'spec'))) {
+    rounds.push({ round: cur, reviews });
+  }
+  return rounds.sort((a, b) => a.round - b.round);
+}
+function statusOf(job, rounds) {
+  const r = Number(job.round) || 0;
+  switch (stageOf(job)) {
+    case 'spec': return 'writing spec';
+    case 'build': return r > 1 ? `rework for round ${r}` : 'building';
+    case 'review': {
+      const cur = rounds.find((x) => x.round === r);
+      const n = cur ? REVIEWERS.filter((v) => verdictOf(cur.reviews[v.key]) !== 'pending').length : 0;
+      return `round ${r} · ${n}/4 in`;
+    }
+    case 'approve': return 'approver deciding';
+    case 'needs-human': return 'needs you';
+    case 'merged': return /human/i.test(job.decision || '') ? 'merged · approved by you' : 'merged';
+  }
+}
+
+/* ── floor ──────────────────────────────────────── */
+function chipHTML(id, round, rv, raw) {
+  const v = verdictOf(raw), key = `${id}|${round}|${rv.key}`;
+  const landed = !firstLoad && v !== 'pending' && seenVerdicts.get(key) === 'pending';
+  seenVerdicts.set(key, v);
+  const word = v === 'pass' ? 'pass' : v === 'changes' ? 'changes requested' : 'pending';
+  return `<span class="chip ${v}${landed ? ' landed' : ''}" title="${rv.key}: ${word}">${rv.short}<span class="sr">: ${word}</span></span>`;
+}
+function cardHTML(job) {
+  const st = stageOf(job), rounds = roundsOf(job), { num, slug } = splitId(job.id);
+  const title = job.title || slug.replace(/-/g, ' ');
+  const cls = 'card' + (st === 'needs-human' ? ' alarm' : '') + (st === 'merged' ? ' done' : '');
+  const rows = rounds.map((r) =>
+    `<span class="round"><span class="r">R${r.round}</span>${REVIEWERS.map((v) => chipHTML(job.id, r.round, v, r.reviews?.[v.key])).join('')}</span>`).join('');
+  const vt = 'job-' + String(job.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `<a class="${cls}" href="#${encodeURIComponent(job.id)}" data-id="${esc(job.id)}" style="view-transition-name:${vt}">
+    <span class="card-id"><span class="num">${esc(num)}</span><span class="slug">${esc(slug)}</span></span>
+    <span class="title">${esc(title)}</span>
+    ${rows ? `<span class="rounds">${rows}</span>` : ''}
+    <span class="status"><span class="what">${esc(statusOf(job, rounds))}</span><span data-ts="${esc(job.updated || '')}">${esc(ago(job.updated))}</span></span>
+  </a>`;
+}
+function floorHTML() {
+  const jobs = (board.jobs || []).filter((j) => j && j.id != null)
+    .sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+  const by = Object.fromEntries(STAGES.map((s) => [s.key, []]));
+  jobs.forEach((j) => by[stageOf(j)].push(j));
+  return STAGES.map((s) => {
+    const list = by[s.key], n = list.length;
+    const alarm = s.key === 'needs-human' && n > 0;
+    const lamp = alarm ? 'alarm' : ACTIVE.has(s.key) && n ? 'on' : '';
+    return `<section class="station${alarm ? ' alarm' : ''}" aria-labelledby="st-${s.key}">
+      <header class="station-head"><h2 id="st-${s.key}"><span class="lamp ${lamp}"></span>${s.label}<span class="count">${n}</span></h2><p>${esc(s.hint)}</p></header>
+      <div class="lane">${list.map(cardHTML).join('')}</div>
+    </section>`;
+  }).join('');
+}
+function renderFloor(animate) {
+  const html = floorHTML();
+  const swap = () => { $('#floor').innerHTML = html; };
+  if (animate && document.startViewTransition && !reduceMotion.matches) document.startViewTransition(swap);
+  else swap();
+}
+
+/* ── header signal + notice ─────────────────────── */
+function renderChrome() {
+  const jobs = board.jobs || [];
+  const needs = jobs.filter((j) => stageOf(j) === 'needs-human').length;
+  const active = jobs.filter((j) => ACTIVE.has(stageOf(j))).length;
+  const sig = $('#signal');
+  let lamp = '', msg, cls = '';
+  if (loadError) { msg = "Can't read board.json"; cls = 'error'; }
+  else if (needs) { lamp = 'alarm'; cls = 'alarm'; msg = needs === 1 ? '1 job needs you' : `${needs} jobs need you`; }
+  else if (active) { lamp = 'on'; msg = `${active} job${active === 1 ? '' : 's'} in progress`; }
+  else { msg = boardText === null ? 'Connecting…' : 'Line idle'; }
+  sig.className = 'signal ' + cls;
+  sig.querySelector('.lamp').className = 'lamp ' + lamp;
+  sig.querySelector('.msg').textContent = msg;
+  renderReadTime();
+  document.title = needs ? `(${needs}) Factory floor` : 'Factory floor';
+
+  const notice = $('#notice');
+  if (loadError) {
+    notice.innerHTML = location.protocol === 'file:'
+      ? 'This page reads <code>board.json</code> over HTTP. Run <code>cd factory &amp;&amp; python3 -m http.server 8765</code>, then open <code>http://localhost:8765/dashboard.html</code>.'
+      : `Can't load <code>board.json</code> (${esc(loadError)}). Retrying every 2 seconds.`;
+    notice.hidden = false;
+  } else if (boardText !== null && !jobs.length) {
+    notice.innerHTML = 'No jobs yet. In Claude Code, run <code>/factory &lt;feature&gt;</code> to start one, or <code>/factory next</code> to take the top unchecked item from <code>backlog.md</code>.';
+    notice.hidden = false;
+  } else notice.hidden = true;
+}
+function renderReadTime() {
+  const latest = Math.max(0, ...(board.jobs || []).map((j) => Date.parse(j.updated) || 0));
+  $('#signal .read').textContent = loadError ? 'retrying…' : boardText === null ? '' : latest ? `last change ${ago(new Date(latest).toISOString())}` : 'live';
+}
+
+/* ── polling ────────────────────────────────────── */
+const stageMap = (b) => new Map((b.jobs || []).map((j) => [String(j.id), stageOf(j)]));
+async function poll() {
+  try {
+    const res = await fetch('board.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    if (text !== boardText) {
+      const parsed = JSON.parse(text);
+      if (!parsed || !Array.isArray(parsed.jobs)) throw new Error('board.json has no "jobs" array');
+      const before = stageMap(board), after = stageMap(parsed);
+      const moved = before.size !== after.size || [...after].some(([id, st]) => before.get(id) !== st);
+      board = parsed; boardText = text;
+      renderFloor(!firstLoad && moved);
+      firstLoad = false;
+      if (drawerId) refreshDrawer();
+    }
+    failCount = 0;
+    if (loadError) loadError = null;
+    renderChrome();
+  } catch (e) {
+    // One bad read is usually the orchestrator mid-write; only complain if it persists.
+    if (++failCount >= 2 || location.protocol === 'file:') {
+      loadError = e instanceof SyntaxError ? 'invalid JSON' : e.message || 'network error';
+      renderChrome();
+    }
+  } finally {
+    setTimeout(poll, POLL_MS);
+  }
+}
+setInterval(() => {
+  document.querySelectorAll('[data-ts]').forEach((el) => { el.textContent = ago(el.dataset.ts); });
+  renderReadTime();
+}, 10000);
+
+/* ── drawer: a job's markdown files ─────────────── */
+const drawer = $('#drawer');
+let drawerId = null, drawerFile = null, shownKey = null, shownText = null, loadToken = 0;
+
+const safePath = (p) => typeof p === 'string' && p && !p.startsWith('/') && !p.split('/').some((s) => s === '' || s === '..');
+function describe(path) {
+  let m;
+  if ((m = path.match(/^round-(\d+)\/review-([\w-]+)\.md$/))) {
+    const i = REVIEWERS.findIndex((v) => v.key === m[2]);
+    return { group: `Round ${m[1]}`, order: 100 + Number(m[1]), sub: i < 0 ? 9 : i, label: m[2], round: Number(m[1]), kind: m[2] };
+  }
+  if ((m = path.match(/^rework-(\d+)\.md$/))) return { group: 'Job', order: 0, sub: 10 + Number(m[1]), label: `rework ${m[1]}` };
+  const fixed = { 'feature.md': 0, 'spec.md': 1, 'build.md': 2, 'decision.md': 50 }[path];
+  if (fixed !== undefined) return { group: 'Job', order: 0, sub: fixed, label: path.replace(/\.md$/, '') };
+  return { group: 'Other', order: 999, sub: 0, label: path };
+}
+function authorOf(path) {
+  if (path === 'feature.md') return 'The orchestrator';
+  if (path === 'spec.md') return 'spec-writer';
+  if (path === 'build.md') return 'The builder';
+  if (path === 'decision.md') return 'The approver';
+  const m = path.match(/review-([\w-]+)\.md$/);
+  if (m) return `reviewer-${m[1]}`;
+  return null;
+}
+function filesOf(job) {
+  const listed = Array.isArray(job.files) ? job.files.filter(safePath) : null;
+  const st = stageOf(job), cur = Number(job.round) || 0;
+  const histMax = Math.max(0, ...(job.history || []).map((h) => Number(h.round) || 0));
+  const reviewed = Math.max(histMax, st === 'spec' || st === 'build' ? cur - 1 : cur);
+  const derived = ['feature.md', 'spec.md'];
+  if (st !== 'spec') derived.push('build.md');
+  for (let n = 1; n <= reviewed; n++) REVIEWERS.forEach((v) => derived.push(`round-${n}/review-${v.key}.md`));
+  if (['approve', 'needs-human', 'merged'].includes(st)) derived.push('decision.md');
+  return [...new Set([...derived, ...(listed || [])])]
+    .map((path) => ({ path, present: listed ? listed.includes(path) : true, ...describe(path) }))
+    .sort((a, b) => a.order - b.order || a.sub - b.sub || a.path.localeCompare(b.path));
+}
+function defaultFile(job, files) {
+  const have = files.filter((f) => f.present);
+  const pick = (p) => have.find((f) => f.path === p)?.path;
+  if (pick('decision.md')) return 'decision.md';
+  if (stageOf(job) === 'build' && pick('build.md')) return 'build.md';
+  const reviews = have.filter((f) => f.round);
+  if (reviews.length) {
+    const last = Math.max(...reviews.map((f) => f.round));
+    const inLast = reviews.filter((f) => f.round === last);
+    const rounds = roundsOf(job).find((r) => r.round === last);
+    return (inLast.find((f) => verdictOf(rounds?.reviews?.[f.kind]) === 'changes') || inLast[0]).path;
+  }
+  return pick('build.md') || pick('spec.md') || 'feature.md';
+}
+
+function openDrawer(id, file) {
+  const changedJob = drawerId !== id;
+  drawerId = id;
+  if (file && safePath(file)) drawerFile = file;
+  else if (changedJob) drawerFile = null;
+  refreshDrawer();
+  if (!drawer.open) { drawer.showModal(); $('#d-title').focus(); }
+}
+function closeDrawer() {
+  if (drawer.open) drawer.close();
+}
+drawer.addEventListener('close', () => {
+  const id = drawerId;
+  drawerId = drawerFile = shownKey = shownText = null;
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  const card = id && [...document.querySelectorAll('.card')].find((c) => c.dataset.id === id);
+  if (card) card.focus();
+});
+drawer.addEventListener('click', async (e) => {
+  if (e.target === drawer) return closeDrawer(); // backdrop
+  const fileBtn = e.target.closest('[data-path]');
+  if (fileBtn) {
+    drawerFile = fileBtn.dataset.path;
+    const hash = '#' + encodeURIComponent(drawerId) + '/' + drawerFile.split('/').map(encodeURIComponent).join('/');
+    history.replaceState(null, '', hash);
+    refreshDrawer();
+    return;
+  }
+  const copy = e.target.closest('[data-copy]');
+  if (copy) {
+    try { await navigator.clipboard.writeText(copy.dataset.copy); copy.textContent = 'Copied'; }
+    catch { copy.textContent = 'Select to copy'; }
+    setTimeout(() => { copy.textContent = 'Copy'; }, 1600);
+  }
+});
+$('#d-close').addEventListener('click', closeDrawer);
+
+function refreshDrawer() {
+  const job = findJob(drawerId);
+  const focusedPath = document.activeElement?.dataset?.path;
+  if (!job) {
+    $('#d-num').textContent = splitId(drawerId).num;
+    $('#d-title').textContent = boardText === null ? 'Loading board…' : `Job ${drawerId} isn't on the board`;
+    $('#d-meta').innerHTML = ''; $('#d-andon').hidden = true; $('#d-files').innerHTML = ''; $('#d-doc').innerHTML = '';
+    return;
+  }
+  const st = stageOf(job), { num, slug } = splitId(job.id);
+  $('#d-num').textContent = num;
+  $('#d-title').textContent = job.title || slug.replace(/-/g, ' ');
+  const meta = [
+    job.branch || `factory/${job.id}`,
+    STAGES.find((s) => s.key === st).label.toLowerCase() + (job.round ? ` · round ${job.round}` : ''),
+    job.decision ? `decision: ${job.decision}` : '',
+  ].filter(Boolean);
+  $('#d-meta').innerHTML = meta.map((m) => `<span>${esc(m)}</span>`).join('') +
+    (job.updated ? `<span data-ts="${esc(job.updated)}">${esc(ago(job.updated))}</span>` : '');
+
+  const andon = $('#d-andon');
+  andon.hidden = st !== 'needs-human';
+  if (!andon.hidden) {
+    const a = `/factory approve ${job.id}`, r = `/factory rework ${job.id} "what to change"`;
+    andon.innerHTML = `<strong>Needs you.</strong> This job was escalated. Read <button class="link" data-path="decision.md">decision.md</button>, then run one of these in Claude Code:
+      <div class="cmd"><code>${esc(a)}</code><button class="btn" type="button" data-copy="${esc(a)}">Copy</button></div>
+      <div class="cmd"><code>${esc(r)}</code><button class="btn" type="button" data-copy="${esc(r)}">Copy</button></div>`;
+  }
+
+  const files = filesOf(job);
+  if (!drawerFile) drawerFile = defaultFile(job, files);
+  if (!files.some((f) => f.path === drawerFile)) files.push({ path: drawerFile, present: true, ...describe(drawerFile) });
+  const rounds = roundsOf(job);
+  const groups = [];
+  files.forEach((f) => {
+    let g = groups.find((x) => x.name === f.group);
+    if (!g) groups.push((g = { name: f.group, files: [] }));
+    g.files.push(f);
+  });
+  $('#d-files').innerHTML = groups.map((g) => `<div class="fgroup"><span class="glabel">${esc(g.name)}</span>${g.files.map((f) => {
+    const v = f.round ? verdictOf(rounds.find((r) => r.round === f.round)?.reviews?.[f.kind]) : null;
+    const dot = v ? `<span class="dot ${v}" aria-hidden="true"></span>` : '';
+    return `<button type="button" class="fbtn${f.present ? '' : ' missing'}" data-path="${esc(f.path)}" aria-current="${f.path === drawerFile}"${v ? ` title="${esc(f.label)}: ${v}"` : ''}>${dot}${esc(f.label)}</button>`;
+  }).join('')}</div>`).join('');
+  if (focusedPath) document.querySelector(`.fbtn[data-path="${CSS.escape(focusedPath)}"]`)?.focus();
+
+  loadFile(files.find((f) => f.path === drawerFile));
+}
+
+async function loadFile(file) {
+  const id = drawerId, path = drawerFile, key = id + '/' + path, token = ++loadToken;
+  const doc = $('#d-doc'), body = $('#d-body');
+  const show = (html, text) => {
+    if (token !== loadToken) return;
+    if (shownKey === key && shownText === text) return; // unchanged: keep scroll position
+    if (shownKey !== key) body.scrollTop = 0;
+    shownKey = key; shownText = text;
+    doc.innerHTML = html;
+  };
+  const missing = () => {
+    const who = authorOf(path);
+    show(`<p class="empty"><strong>Not written yet.</strong>${who ? ` ${esc(who)} writes this file when it finishes.` : ''}</p>`, '\u0000missing');
+  };
+  if (file && !file.present) return missing();
+  try {
+    const url = 'jobs/' + [id, ...path.split('/')].map(encodeURIComponent).join('/');
+    const res = await fetch(url, { cache: 'no-store' });
+    if (res.status === 404) return missing();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    const stampable = path === 'decision.md' || /review-[\w-]+\.md$/.test(path);
+    show(renderMarkdown(text, stampable), text);
+  } catch (e) {
+    show(`<p class="empty">Couldn't load ${esc(path)}: ${esc(e.message)}</p>`, '\u0000error');
+  }
+}
+
+/* ── routing: #<job-id>[/<file>] ────────────────── */
+function route() {
+  let h = '';
+  try { h = decodeURIComponent(location.hash.slice(1)); } catch { /* malformed hash */ }
+  if (!h) return closeDrawer();
+  const i = h.indexOf('/');
+  openDrawer(i < 0 ? h : h.slice(0, i), i < 0 ? null : h.slice(i + 1));
+}
+window.addEventListener('hashchange', route);
+
+/* ── tiny markdown renderer (escapes everything) ── */
+const RE = {
+  fence: /^\s{0,3}(`{3,}|~{3,})(.*)$/,
+  heading: /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/,
+  hr: /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/,
+  quote: /^\s{0,3}>\s?(.*)$/,
+  list: /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/,
+  tableSep: /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/,
+};
+const isTableStart = (l, next) => l.includes('|') && next !== undefined && next.includes('-') && RE.tableSep.test(next);
+const startsBlock = (l, next) =>
+  RE.fence.test(l) || RE.heading.test(l) || RE.hr.test(l) || RE.quote.test(l) || RE.list.test(l) || isTableStart(l, next);
+
+function inline(s) {
+  return String(s).split(/(`+[^`]*?`+)/).map((part, i) => {
+    if (i % 2) return `<code>${esc(part.replace(/^`+|`+$/g, ''))}</code>`;
+    return esc(part)
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/\*\*(?=\S)(.+?)(?<=\S)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(?=\S)(.+?)(?<=\S)__/g, '<strong>$1</strong>')
+      .replace(/(^|[^\w*])\*(?=\S)(.+?)(?<=\S)\*(?!\w)/g, '$1<em>$2</em>')
+      .replace(/(^|[^\w])_(?=\S)(.+?)(?<=\S)_(?!\w)/g, '$1<em>$2</em>')
+      .replace(/~~(.+?)~~/g, '<del>$1</del>');
+  }).join('');
+}
+function itemHTML(lines) {
+  while (lines.length > 1 && !lines[lines.length - 1].trim()) lines.pop();
+  let first = lines[0], task = null;
+  const t = first.match(/^\[([ xX])\]\s+(.*)$/);
+  if (t) { task = t[1] !== ' '; first = t[2]; }
+  const rest = lines.slice(1);
+  const ind = Math.min(...rest.filter((s) => s.trim()).map(indentOf));
+  const body = inline(first) + (rest.length ? blocks(rest.map((s) => s.slice(Math.min(indentOf(s), isFinite(ind) ? ind : 0)))) : '');
+  const box = task === null ? '' : `<input type="checkbox" disabled${task ? ' checked' : ''}>`;
+  return `<li${task === null ? '' : ' class="task"'}>${box}${body}</li>`;
+}
+function blocks(lines) {
+  const out = [];
+  let i = 0, m;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (!l.trim()) { i++; continue; }
+    if ((m = l.match(RE.fence))) {
+      const mark = m[1], buf = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith(mark)) buf.push(lines[i++]);
+      i++;
+      out.push(`<pre><code>${esc(buf.join('\n'))}</code></pre>`);
+      continue;
+    }
+    if ((m = l.match(RE.heading))) { const n = Math.min(m[1].length + 2, 5); out.push(`<h${n}>${inline(m[2])}</h${n}>`); i++; continue; }
+    if (RE.hr.test(l)) { out.push('<hr>'); i++; continue; }
+    if (RE.quote.test(l)) {
+      const buf = [];
+      while (i < lines.length && RE.quote.test(lines[i])) buf.push(lines[i++].match(RE.quote)[1]);
+      out.push(`<blockquote>${blocks(buf)}</blockquote>`);
+      continue;
+    }
+    if (isTableStart(l, lines[i + 1])) {
+      const row = (s) => s.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      const head = row(l), body = [];
+      i += 2;
+      while (i < lines.length && lines[i].includes('|') && lines[i].trim()) body.push(row(lines[i++]));
+      out.push(`<table><thead><tr>${head.map((c) => `<th>${inline(c)}</th>`).join('')}</tr></thead><tbody>${
+        body.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
+      continue;
+    }
+    if ((m = l.match(RE.list))) {
+      const base = m[1].length, ordered = /\d/.test(m[2]), start = ordered ? parseInt(m[2], 10) : 1, items = [];
+      while (i < lines.length) {
+        const cur = lines[i], mm = cur.match(RE.list);
+        if (mm && mm[1].length <= base + 1) { items.push([mm[3]]); i++; continue; }
+        if (!cur.trim()) {
+          let j = i + 1;
+          while (j < lines.length && !lines[j].trim()) j++;
+          const nx = lines[j];
+          if (nx !== undefined && (indentOf(nx) > base + 1 || (RE.list.test(nx) && indentOf(nx) <= base + 1))) { items[items.length - 1].push(''); i++; continue; }
+          break;
+        }
+        if (indentOf(cur) > base && items.length) { items[items.length - 1].push(cur); i++; continue; }
+        break;
+      }
+      const tag = ordered ? 'ol' : 'ul';
+      out.push(`<${tag}${ordered && start !== 1 ? ` start="${start}"` : ''}>${items.map(itemHTML).join('')}</${tag}>`);
+      continue;
+    }
+    const buf = [l.trim()];
+    i++;
+    while (i < lines.length && lines[i].trim() && !startsBlock(lines[i], lines[i + 1])) buf.push(lines[i++].trim());
+    out.push(`<p>${inline(buf.join(' '))}</p>`);
+  }
+  return out.join('');
+}
+function renderMarkdown(src, stampable) {
+  const lines = String(src).replace(/\r\n?/g, '\n').split('\n');
+  let stamp = '';
+  const k = lines.findIndex((l) => l.trim());
+  if (stampable && k >= 0) {
+    const first = lines[k].trim().replace(/^[#>*_\s]+|[*_\s]+$/g, '');
+    const m = first.match(/^VERDICT:\s*(PASS|CHANGES)\b/i) || first.match(/^(APPROVE|ESCALATE)\b/);
+    if (m) { const w = m[1].toUpperCase(); stamp = `<div class="stamp ${w.toLowerCase()}">${w}</div>`; lines.splice(k, 1); }
+  }
+  return stamp + blocks(lines);
+}
+
+renderFloor(false);
+renderChrome();
+poll();
+route();
+</script>
+</body>
+</html>
