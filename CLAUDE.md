@@ -12,6 +12,8 @@ and `.claude/agents/` for each agent.
   pytest's `pythonpath = ["src"]` in `pyproject.toml` (no install needed).
 - **Run:** `cd src && python3 -m app`; todo CLI:
   `cd src && python3 -m app.todo add <text...>|list|done <n>` (stores `~/.todo.json`)
+  todo web page: `cd src && python3 -m app.web [--port N]` (default 8000, binds
+  127.0.0.1 only, shares `~/.todo.json` with the CLI)
 - **Test framework:** pytest (dev-only, listed in `requirements-dev.txt`).
 - **Test command:** `make test` — creates a project-local `.venv/` and installs
   dev deps on first run, then runs `.venv/bin/python -m pytest`. Do not rely on a
