@@ -31,6 +31,7 @@ from app.todo import TodoError, add_item, complete_item, load_items
 
 DEFAULT_PORT = 8000
 MAX_BODY = 10_000  # bytes
+REQUEST_TIMEOUT = 10.0  # seconds a client may take to send its request
 
 FORM_TYPE = "application/x-www-form-urlencoded"
 EMPTY_TEXT_ERROR = "todo text must not be empty"
@@ -140,6 +141,12 @@ class TodoHandler(http.server.BaseHTTPRequestHandler):
     """Request handler for the todo page. ``store_path`` is set per server."""
 
     store_path: Path | None = None
+    # The server is single-threaded, so an idle or slow client (e.g. a browser
+    # preconnect socket, or a short body) must not block everyone else forever.
+    # StreamRequestHandler applies this with settimeout(); http.server then
+    # logs "Request timed out" and drops the connection without touching the
+    # store.
+    timeout = REQUEST_TIMEOUT
     server_version = "todo-web"
     sys_version = ""
 

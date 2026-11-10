@@ -409,6 +409,50 @@ def test_invalid_utf8_400(port, store):
     assert not store.exists()
 
 
+# Slow / idle clients must not block the single-threaded server.
+def test_handler_has_timeout(tmp_path):
+    srv = make_server(port=0, path=tmp_path / ".todo.json")
+    try:
+        assert srv.RequestHandlerClass.timeout == web.REQUEST_TIMEOUT
+        assert web.REQUEST_TIMEOUT is not None and web.REQUEST_TIMEOUT > 0
+    finally:
+        srv.server_close()
+
+
+@pytest.mark.parametrize(
+    "stall",
+    [b"", b"GET / HTTP/1.1\r\nHost: ",
+     b"POST /add HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
+     b"Content-Type: application/x-www-form-urlencoded\r\n"
+     b"Content-Length: 100\r\n\r\ntext=partial"],
+    ids=["idle", "partial-headers", "short-body"],
+)
+def test_stalled_client_does_not_block_server(home, stall):
+    path = home / ".todo.json"
+    srv = make_server(port=0, path=path)
+    srv.RequestHandlerClass.timeout = 0.3
+    thread = threading.Thread(target=srv.serve_forever, args=(0.01,), daemon=True)
+    thread.start()
+    port = srv.server_address[1]
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as stalled:
+            if stall:
+                stalled.sendall(stall.replace(b"{port}", str(port).encode()))
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            try:
+                conn.request("GET", "/")
+                resp = conn.getresponse()
+                assert resp.status == 200
+                resp.read()
+            finally:
+                conn.close()
+        assert not path.exists()  # the stalled POST never wrote anything
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        thread.join(timeout=5)
+
+
 # AC11
 @pytest.mark.parametrize("path", ["/nope", "/index.html", "/add/x", "/done/"])
 def test_unknown_get_404(port, path):
